@@ -1,0 +1,18 @@
+{
+  "name": "itac-legacy-shop-training",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "node app/server.cjs",
+    "test": "playwright test",
+    "test:ui": "playwright test --ui",
+    "test:headed": "playwright test --headed",
+    "report": "playwright show-report",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.0",
+    "@types/node": "^22.0.0",
+    "typescript": "^5.9.0"
+  }
+}

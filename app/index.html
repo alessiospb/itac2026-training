@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Training Shop</title>
+<style>
+body{font:16px system-ui;margin:40px auto;max-width:960px;padding:0 24px;background:#f3f5fa;color:#18233b}header{display:flex;align-items:center;justify-content:space-between}h1{font-size:36px}section,article{background:white;border-radius:12px;padding:24px;margin:16px 0}#products{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}button{background:#284fce;color:white;border:0;border-radius:6px;padding:12px;cursor:pointer}button:disabled{opacity:.5}input{padding:10px;margin:8px 0;display:block;width:90%;border:1px solid #aab4c8;border-radius:5px}label{display:block;margin-top:12px}.muted{color:#667085}#error{color:#b42318}[hidden]{display:none!important}li{margin:12px 0}li button{margin-left:16px}
+</style>
+<header><h1>Training Shop</h1><button id="cart-button">Cart (<span id="count">0</span>)</button></header>
+<p class="muted">Tools for your next great idea.</p>
+<main>
+<section aria-label="Catalog"><h2>Catalog</h2><label for="search">Search products</label><input id="search" type="search"><p id="loading" role="status">Loading products…</p><div id="products"></div><p id="empty" hidden>No products found</p></section>
+<section id="cart" aria-label="Shopping cart" hidden><h2>Shopping cart</h2><ul id="items"></ul><p id="cart-empty">Your cart is empty</p><p>Total: $<span id="total">0</span></p><button id="checkout">Checkout</button></section>
+<section id="checkout-form" hidden><h2>Checkout</h2><form novalidate><label for="email">Email</label><input id="email" type="email"><label for="address">Shipping address</label><input id="address"><label for="coupon">Coupon</label><input id="coupon"><button id="apply" type="button">Apply coupon</button><p id="coupon-status" role="status"></p><p>Order total: $<span id="order-total">0</span></p><p id="error" role="alert"></p><button id="submit" type="submit">Place order</button></form></section>
+<section id="confirmation" hidden><h2>Thank you for your order</h2><p id="order-id"></p></section>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+let products = [], cart = JSON.parse(localStorage.getItem('training-cart') || '[]'), discount = 0;
+const subtotal = () => cart.reduce((sum,id) => sum + (products.find(p=>p.id===id)?.price || 0),0);
+function renderCart(){
+ localStorage.setItem('training-cart',JSON.stringify(cart));
+ $('count').textContent=cart.length;
+ $('items').replaceChildren();
+ cart.forEach((id,index)=>{const p=products.find(p=>p.id===id);if(!p)return;const li=document.createElement('li');li.textContent=p.name+' — $'+p.price;const b=document.createElement('button');b.textContent='Remove';b.setAttribute('aria-label','Remove '+p.name);b.onclick=()=>{cart.splice(index,1);renderCart()};li.append(b);$('items').append(li)});
+ $('cart-empty').hidden=cart.length>0;$('checkout').disabled=!cart.length;
+ $('total').textContent=subtotal();$('order-total').textContent=(subtotal()*(1-discount)).toFixed(2);
+}
+function renderProducts(){
+ $('products').replaceChildren();const visible=products.filter(p=>p.name.toLowerCase().includes($('search').value.toLowerCase()));
+ visible.forEach(p=>{const card=document.createElement('article');card.setAttribute('aria-label',p.name);const h=document.createElement('h3');h.textContent=p.name;const price=document.createElement('p');price.textContent='$'+p.price;const b=document.createElement('button');b.textContent='Add to cart';b.onclick=()=>{b.disabled=true;setTimeout(()=>{cart.push(p.id);renderCart();b.disabled=false},150+Math.random()*700)};card.append(h,price,b);$('products').append(card)});$('empty').hidden=visible.length>0;
+}
+$('search').oninput=renderProducts;
+$('cart-button').onclick=()=>{$('cart').hidden=!$('cart').hidden};
+$('checkout').onclick=()=>{$('checkout-form').hidden=false};
+$('apply').onclick=()=>{discount=$('coupon').value==='SAVE10'?.1:0;$('coupon-status').textContent=discount?'Coupon applied: 10% off':'Invalid coupon';renderCart()};
+document.querySelector('form').onsubmit=async e=>{
+ e.preventDefault();$('error').textContent='';
+ if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test($('email').value)){$('error').textContent='Enter a valid email';return}
+ if($('address').value.trim().length<5){$('error').textContent='Enter a shipping address (at least 5 characters)';return}
+ $('submit').disabled=true;
+ try{const response=await fetch('/api/orders',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:$('email').value,address:$('address').value,items:cart})});if(!response.ok)throw Error();const order=await response.json();$('confirmation').hidden=false;$('order-id').textContent=order.id;cart=[];discount=0;renderCart();$('checkout-form').hidden=true}catch{$('error').textContent='Unable to place order. Please try again.'}finally{$('submit').disabled=false}
+};
+fetch('/api/products').then(r=>r.json()).then(data=>{products=data;$('loading').hidden=true;renderProducts();renderCart()});
+</script>
+</html>
