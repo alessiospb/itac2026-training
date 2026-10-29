@@ -1,7 +1,7 @@
 # Competition Change Log
 
 Baseline: commit `b686df0` (unmodified project). Audit: `7a2a58d` (`AUDIT.md`, findings F1–F17).
-All changes below are uncommitted working-tree changes on `main` and are waiting for review. `app/` was not modified.
+All changes below are in commit `d4a5f55` on `main`. `app/` was not modified.
 
 ## Changes
 
