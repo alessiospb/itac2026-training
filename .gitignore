@@ -4,3 +4,7 @@ test-results/
 blob-report/
 .env
 .npm-cache/
+# Local run evidence: only runs.log and results.json are committed
+evidence/*/html-report/
+evidence/*/test-results/
+evidence/*/console.log

@@ -28,3 +28,28 @@ jobs:
           path: test-results/
           if-no-files-found: ignore
           retention-days: 14
+      # The report is published for red runs too: that is when it is needed most.
+      - uses: actions/upload-pages-artifact@v3
+        if: always() && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        with:
+          path: playwright-report/
+
+  # Publishes the HTML report of the latest main run to GitHub Pages.
+  # The workflow result is still decided by the tests job.
+  deploy-report:
+    needs: tests
+    if: always() && needs.tests.result != 'cancelled' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pages: write
+      id-token: write
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
