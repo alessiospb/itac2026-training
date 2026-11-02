@@ -1,0 +1,378 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Training Shop QA Walkthrough</title>
+<style>
+  :root {
+    --bg: #0b0f14;
+    --panel: #121922;
+    --panel-2: #18212c;
+    --line: #263241;
+    --text: #e8eef5;
+    --muted: #9fb0c3;
+    --green: #3fb950;
+    --green-bg: rgba(63, 185, 80, .14);
+    --red: #f85149;
+    --red-bg: rgba(248, 81, 73, .14);
+    --amber: #d29922;
+    --amber-bg: rgba(210, 153, 34, .16);
+    --blue: #58a6ff;
+    --mono: ui-monospace, "Cascadia Mono", Consolas, "SFMono-Regular", Menlo, monospace;
+    --sans: "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font-family: var(--sans); overflow: hidden; }
+
+  /* A fixed 1280x720 stage, scaled to fit the window: identical layout at 1280x720 and 1920x1080. */
+  #viewport { position: fixed; inset: 0; display: grid; place-items: center; }
+  #stage { width: 1280px; height: 720px; position: relative; transform-origin: center center; }
+
+  .slide { position: absolute; inset: 0; padding: 44px 56px 64px; display: none; flex-direction: column; gap: 18px; }
+  .slide.active { display: flex; }
+
+  .kicker { font: 600 15px/1 var(--mono); color: var(--blue); letter-spacing: .04em; }
+  h1 { margin: 0; font-size: 40px; line-height: 1.15; font-weight: 700; }
+  h2 { margin: 0; font-size: 20px; font-weight: 600; color: var(--muted); }
+  h3 { margin: 0 0 8px; font-size: 19px; font-weight: 650; }
+  p, li { font-size: 19px; line-height: 1.4; margin: 0; }
+  ul { margin: 0; padding-left: 22px; display: grid; gap: 7px; }
+  .muted { color: var(--muted); }
+  code, .mono { font-family: var(--mono); font-size: .92em; }
+
+  .grid { display: grid; gap: 16px; }
+  .g2 { grid-template-columns: 1fr 1fr; }
+  .g3 { grid-template-columns: repeat(3, 1fr); }
+  .g4 { grid-template-columns: repeat(4, 1fr); }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; min-width: 0; }
+
+  .metric { font: 700 44px/1 var(--sans); }
+  .metric small { font-size: 18px; font-weight: 500; color: var(--muted); }
+  .label { font-size: 16px; color: var(--muted); margin-top: 6px; }
+
+  .tag { display: inline-block; font: 700 13px/1 var(--mono); padding: 5px 8px; border-radius: 5px; letter-spacing: .04em; vertical-align: middle; white-space: nowrap; }
+  .ok { color: var(--green); background: var(--green-bg); }
+  .bad { color: var(--red); background: var(--red-bg); }
+  .warn { color: var(--amber); background: var(--amber-bg); }
+  .info { color: var(--blue); background: rgba(88, 166, 255, .14); }
+  .c-ok { color: var(--green); } .c-bad { color: var(--red); } .c-warn { color: var(--amber); }
+  .bl-ok { border-left: 4px solid var(--green); } .bl-bad { border-left: 4px solid var(--red); } .bl-warn { border-left: 4px solid var(--amber); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 17px; }
+  th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: 15px; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+  pre { margin: 0; background: #0d1117; border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; font: 15px/1.45 var(--mono); white-space: pre; overflow: hidden; }
+  .del { color: #ffa198; } .add { color: #7ee787; } .cm { color: #8b949e; }
+
+  a { color: var(--blue); text-decoration: none; border-bottom: 1px solid rgba(88, 166, 255, .4); }
+  a:focus-visible, button:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+  .na { color: var(--amber); font-style: italic; }
+  .source { position: absolute; left: 56px; bottom: 26px; font-size: 14px; color: var(--muted); font-family: var(--mono); }
+
+  /* Chrome: progress bar, counter, controls */
+  #progress { position: fixed; left: 0; top: 0; height: 4px; background: var(--blue); transition: width .2s; z-index: 5; }
+  #hud { position: fixed; right: 18px; bottom: 14px; display: flex; gap: 8px; align-items: center; z-index: 5; font: 14px var(--mono); color: var(--muted); }
+  #hud button { background: var(--panel-2); color: var(--text); border: 1px solid var(--line); border-radius: 6px; font: 14px var(--mono); padding: 6px 10px; cursor: pointer; }
+  #hud.hidden .ctl { display: none; }
+  #counter { min-width: 52px; text-align: right; }
+</style>
+</head>
+<body>
+<div id="progress" aria-hidden="true"></div>
+<div id="viewport">
+<main id="stage">
+
+<!-- 1. Project overview -->
+<section class="slide" data-sec="15" aria-label="Project overview">
+  <div class="kicker">ITAC 2026 · Training final · 1 / 7</div>
+  <h1>Training Shop: making a legacy Playwright suite trustworthy</h1>
+  <h2>The UI worked. The inherited tests and CI could not be trusted.</h2>
+  <div class="grid g2" style="margin-top:8px">
+    <div class="card">
+      <h3>Task</h3>
+      <ul>
+        <li>Stable, independent UI tests with real result checks</li>
+        <li>Cover all 8 product requirements from the README</li>
+        <li>CI that reliably fails and keeps diagnostics</li>
+        <li>5 consecutive green runs <b>without retries</b></li>
+        <li><code>app/</code> belongs to another team: not modified</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Stack</h3>
+      <ul>
+        <li>Playwright 1.64.1 + TypeScript 5.9.3</li>
+        <li>Chromium, Node.js 22</li>
+        <li>Local single-page shop with random 150–1050 ms delays</li>
+        <li>GitHub Actions + GitHub Pages</li>
+      </ul>
+      <h3 style="margin-top:14px">Git history</h3>
+      <p class="mono" style="font-size:16px;line-height:1.6">b686df0 baseline as received<br>7a2a58d diagnostic audit<br>d4a5f55 stabilized suite<br>9d8d52b Pages deploy (CI series)</p>
+    </div>
+  </div>
+  <div class="source">Source: README.md, git log</div>
+</section>
+
+<!-- 2. Initial state -->
+<section class="slide" data-sec="20" aria-label="Initial state">
+  <div class="kicker">Initial state · baseline b686df0 · 2 / 7</div>
+  <h1>Baseline: 4 of 6 runnable tests failed, CI still green</h1>
+  <div class="grid g4">
+    <div class="card bl-bad"><div class="metric c-bad">4 <small>/ 7</small></div><div class="label">failed</div></div>
+    <div class="card bl-ok"><div class="metric">2 <small>/ 7</small></div><div class="label">passed</div></div>
+    <div class="card bl-warn"><div class="metric c-warn">1 <small>/ 7</small></div><div class="label">skipped (empty <code>test.skip</code>)</div></div>
+    <div class="card"><div class="metric">≈65 <small>s</small></div><div class="label">1 worker, <code>--retries=0</code></div></div>
+  </div>
+  <div class="grid g2">
+    <div class="card">
+      <h3>Observed</h3>
+      <ul>
+        <li><b>Flaky:</b> "catalog is displayed" failed <b class="c-bad">3 of 10</b> repeats (expected 3, received 0)</li>
+        <li><b>Cascade:</b> one failure restarted the worker, and the next tests started on <code>about:blank</code></li>
+        <li><b>Coverage:</b> about 7 of 8 requirements had no real check</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Why the suite could not be trusted</h3>
+      <ul>
+        <li><span class="tag bad">FALSE GREEN</span> CI step had <code>continue-on-error: true</code></li>
+        <li><span class="tag bad">FALSE GREEN</span> <code>try/catch</code> swallowed an assertion</li>
+        <li><span class="tag warn">HIDDEN</span> <code>retries: 2</code> masked flakiness</li>
+      </ul>
+    </div>
+  </div>
+  <div class="source">Source: AUDIT.md §B (baseline runs with --retries=0, 2026-10-26)</div>
+</section>
+
+<!-- 3. Root causes -->
+<section class="slide" data-sec="25" aria-label="Root causes">
+  <div class="kicker">Root causes · all confirmed in baseline runs · 3 / 7</div>
+  <h1>Every baseline failure was a test defect, not a product bug</h1>
+  <div class="grid g3">
+    <div class="card bl-bad">
+      <span class="tag bad">CONFIRMED</span>
+      <h3 style="margin-top:10px">1. Shared state</h3>
+      <p class="mono muted" style="font-size:15px">tests/shop.spec.ts:4-13</p>
+      <p style="margin-top:8px">One page and context in <code>beforeAll</code>. The total and checkout tests relied on items added by an earlier test.</p>
+      <p style="margin-top:8px"><b>Effect:</b> order-dependent results. One failure caused 3 more.</p>
+    </div>
+    <div class="card bl-bad">
+      <span class="tag bad">CONFIRMED</span>
+      <h3 style="margin-top:10px">2. Sleeps vs random delays</h3>
+      <p class="mono muted" style="font-size:15px">pages/shop.ts:5,9 · shop.spec.ts:17,23,45</p>
+      <p style="margin-top:8px"><code>waitForTimeout(300–500)</code> against 150–1050 ms app delays, plus one-shot <code>count()</code>/<code>textContent()</code> reads.</p>
+      <p style="margin-top:8px"><b>Effect:</b> pass or fail depended on timing.</p>
+    </div>
+    <div class="card bl-bad">
+      <span class="tag bad">CONFIRMED</span>
+      <h3 style="margin-top:10px">3. Failures hidden</h3>
+      <p class="mono muted" style="font-size:15px">tests.yml:13-14 · shop.spec.ts:49-55 · playwright.config.ts:7</p>
+      <p style="margin-top:8px"><code>continue-on-error</code> in CI, <code>try/catch</code> around an assertion, <code>retries: 2</code>.</p>
+      <p style="margin-top:8px"><b>Effect:</b> a broken suite looked healthy.</p>
+    </div>
+  </div>
+  <div class="source">Source: AUDIT.md §B–C (findings F1–F7)</div>
+</section>
+
+<!-- 4. Engineering improvements -->
+<section class="slide" data-sec="35" aria-label="Engineering improvements">
+  <div class="kicker">Engineering improvements · commit d4a5f55 · 4 / 7</div>
+  <h1>Isolation per test, wait for state, never for time</h1>
+  <div class="grid g2">
+    <div>
+      <h3>Before → after: isolation</h3>
+<pre><span class="del">- test.beforeAll(async ({ browser }) =&gt; {
+-   context = await browser.newContext();
+-   page = await context.newPage();</span>
+<span class="cm">  // tests/fixtures.ts: fresh context per test</span>
+<span class="add">+ shop: async ({ page }, use) =&gt; {
++   const shop = new Shop(page);
++   await shop.open();
++   await use(shop);</span></pre>
+    </div>
+    <div>
+      <h3>Before → after: synchronization</h3>
+<pre><span class="del">- await this.page.locator('article button')
+-   .first().click();
+- await this.page.waitForTimeout(300);</span>
+<span class="cm">  // pages/shop.ts: wait for the cart badge</span>
+<span class="add">+ const before = Number(await this.cartCount.textContent());
++ await this.product(name)
++   .getByRole('button', { name: 'Add to cart' }).click();
++ await expect(this.cartCount).toHaveText(String(before + 1));</span></pre>
+    </div>
+  </div>
+  <div class="grid g3">
+    <div class="card"><h3>Structure</h3><p>Typed page object, role/label locators. One spec split into <code>catalog</code>, <code>cart</code>, <code>checkout</code>.</p></div>
+    <div class="card"><h3>Honest results</h3><p><code>retries: 0</code>, <code>try/catch</code> removed, web-first assertions, traces on failure.</p></div>
+    <div class="card"><h3>Parallel, measured</h3><p><code>workers: 2</code>: 6 workers stalled the host (3/12 red); 2 workers 8/8 green. Timeout not raised.</p></div>
+  </div>
+  <div class="source">Source: git diff b686df0..d4a5f55, docs/competition-changes.md (C-02, C-04, C-09)</div>
+</section>
+
+<!-- 5. Coverage -->
+<section class="slide" data-sec="25" aria-label="Coverage">
+  <div class="kicker">Coverage · 7 → 19 tests, 0 skipped · 5 / 7</div>
+  <h1>All 8 README requirements now have result checks</h1>
+  <table>
+    <thead><tr><th>Requirement</th><th>Before</th><th>After</th><th class="num">Tests</th></tr></thead>
+    <tbody>
+      <tr><td>Catalog: 3 products with prices</td><td><span class="tag warn">FLAKY · COUNT ONLY</span></td><td><span class="tag ok">COVERED</span> names + prices</td><td class="num">1</td></tr>
+      <tr><td>Search: case-insensitive, "No products found"</td><td><span class="tag warn">PARTIAL</span></td><td><span class="tag ok">COVERED</span> + clearing the search</td><td class="num">4</td></tr>
+      <tr><td>Add to cart, repeat add allowed</td><td><span class="tag bad">FAILING</span></td><td><span class="tag ok">COVERED</span> count, lines, total</td><td class="num">3</td></tr>
+      <tr><td>Remove one line, total recalculated</td><td><span class="tag bad">NONE</span></td><td><span class="tag ok">COVERED</span> 124 → 35</td><td class="num">1</td></tr>
+      <tr><td>Empty cart blocks Checkout</td><td><span class="tag bad">NONE</span></td><td><span class="tag ok">COVERED</span> also after last removal</td><td class="num">2</td></tr>
+      <tr><td>Cart kept after reload</td><td><span class="tag bad">NONE</span></td><td><span class="tag ok">COVERED</span></td><td class="num">1</td></tr>
+      <tr><td>Email valid; address ≥ 5 chars after trim</td><td><span class="tag bad">FALSE PASS</span></td><td><span class="tag ok">COVERED</span> boundaries 4 / 5, trim</td><td class="num">4</td></tr>
+      <tr><td>SAVE10 −10%; unknown coupon → error</td><td><span class="tag warn">SKIPPED</span></td><td><span class="tag ok">COVERED</span> 89.00 → 80.10</td><td class="num">2</td></tr>
+      <tr><td>Order <code>ORD-…</code>, confirmation, cart cleared</td><td><span class="tag bad">FAILING · WEAK</span></td><td><span class="tag ok">COVERED</span></td><td class="num">1</td></tr>
+    </tbody>
+  </table>
+  <div class="grid g2">
+    <div class="card bl-bad" style="padding:12px 16px"><p><span class="tag bad">PRODUCT BUG · CONFIRMED</span> Checkout is enabled for an empty cart while products load (5/5 repro). Filed as a known defect, not as a failing test.</p></div>
+    <div class="card bl-warn" style="padding:12px 16px"><p><span class="tag warn">OPEN</span> Coupon applies to the order total only; coupon case and whitespace handling are not specified, so not asserted.</p></div>
+  </div>
+  <div class="source">Source: tests/*.spec.ts, REPORT.md §4 and §6</div>
+</section>
+
+<!-- 6. CI & stability -->
+<section class="slide" data-sec="30" aria-label="CI and stability">
+  <div class="kicker">CI &amp; stability · GitHub Actions · commit 9d8d52b · 6 / 7</div>
+  <h1>5 of 5 consecutive CI runs green, retries 0</h1>
+  <table>
+    <thead><tr><th>#</th><th>GitHub Actions run</th><th>Trigger</th><th>Start (UTC)</th><th>Result</th><th class="num">Passed</th><th class="num">Failed</th><th class="num">Skipped</th><th class="num">Test time</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td><a href="https://github.com/alessiospb/itac2026-training/actions/runs/41453566130" target="_blank" rel="noopener">41453566130</a></td><td>push</td><td>2026-11-02 13:30</td><td><span class="tag ok">PASS</span></td><td class="num">19</td><td class="num">0</td><td class="num">0</td><td class="num">18.6 s</td></tr>
+      <tr><td>2</td><td><a href="https://github.com/alessiospb/itac2026-training/actions/runs/41453871236" target="_blank" rel="noopener">41453871236</a></td><td>manual</td><td>2026-11-02 13:32</td><td><span class="tag ok">PASS</span></td><td class="num">19</td><td class="num">0</td><td class="num">0</td><td class="num">18.5 s</td></tr>
+      <tr><td>3</td><td><a href="https://github.com/alessiospb/itac2026-training/actions/runs/41454069012" target="_blank" rel="noopener">41454069012</a></td><td>manual</td><td>2026-11-02 13:33</td><td><span class="tag ok">PASS</span></td><td class="num">19</td><td class="num">0</td><td class="num">0</td><td class="num">20.1 s</td></tr>
+      <tr><td>4</td><td><a href="https://github.com/alessiospb/itac2026-training/actions/runs/41454273388" target="_blank" rel="noopener">41454273388</a></td><td>manual</td><td>2026-11-02 13:35</td><td><span class="tag ok">PASS</span></td><td class="num">19</td><td class="num">0</td><td class="num">0</td><td class="num">21.6 s</td></tr>
+      <tr><td>5</td><td><a href="https://github.com/alessiospb/itac2026-training/actions/runs/41454519270" target="_blank" rel="noopener">41454519270</a></td><td>manual</td><td>2026-11-02 13:36</td><td><span class="tag ok">PASS</span></td><td class="num">19</td><td class="num">0</td><td class="num">0</td><td class="num">19.9 s</td></tr>
+    </tbody>
+  </table>
+  <div class="grid g3">
+    <div class="card"><h3>Nothing hides failures</h3><p>No <code>continue-on-error</code>, <code>--retries=0</code>, <code>tsc</code> step. Every run is attempt 1, no re-runs.</p></div>
+    <div class="card"><h3>Diagnostics kept</h3><p>HTML report + traces as artifacts (14 days). <a href="https://alessiospb.github.io/itac2026-training/" target="_blank" rel="noopener">Latest report on Pages</a></p></div>
+    <div class="card bl-warn"><h3>Not shown</h3><p><span class="tag warn">NOT DEMONSTRATED</span> a deliberately red CI run. <span class="tag info">N/A</span> self-healing: not implemented.</p></div>
+  </div>
+  <div class="source">Also 5/5 green locally on d4a5f55 (evidence/runs.log). d4a5f55 → 9d8d52b changes only CI and .gitignore.</div>
+</section>
+
+<!-- 7. Final summary -->
+<section class="slide" data-sec="20" aria-label="Final summary">
+  <div class="kicker">Final summary · 7 / 7</div>
+  <h1>From false green to evidence-backed green</h1>
+  <div class="grid g3">
+    <div class="card bl-ok"><span class="tag ok">DONE</span><h3 style="margin-top:10px">Stable and isolated</h3><p>Per-test context, no sleeps. 5/5 green in CI and 5/5 locally, retries 0.</p></div>
+    <div class="card bl-ok"><span class="tag ok">DONE</span><h3 style="margin-top:10px">Requirements covered</h3><p>7 → 19 tests, 0 skipped. All 8 README requirements, including boundaries.</p></div>
+    <div class="card bl-ok"><span class="tag ok">DONE</span><h3 style="margin-top:10px">Honest CI</h3><p>No suppressed failures, retries 0. Reports and traces kept; report published to Pages.</p></div>
+  </div>
+  <div class="grid g2">
+    <div class="card bl-warn">
+      <h3>Remaining limitations</h3>
+      <ul>
+        <li>Red CI path configured but not demonstrated</li>
+        <li>Product bug: Checkout enabled during loading (open)</li>
+        <li>Coupon rules need clarification</li>
+        <li><code>strict: false</code> in tsconfig</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Links</h3>
+      <table style="font-size:16px">
+        <tr><td>Repository</td><td><a href="https://github.com/alessiospb/itac2026-training" target="_blank" rel="noopener">github.com/alessiospb/itac2026-training</a></td></tr>
+        <tr><td>CI</td><td><a href="https://github.com/alessiospb/itac2026-training/actions" target="_blank" rel="noopener">GitHub Actions</a></td></tr>
+        <tr><td>Report</td><td><a href="https://alessiospb.github.io/itac2026-training/" target="_blank" rel="noopener">alessiospb.github.io/itac2026-training</a></td></tr>
+        <tr><td>STR / report</td><td><a href="https://github.com/alessiospb/itac2026-training/blob/main/REPORT.md" target="_blank" rel="noopener">REPORT.md</a></td></tr>
+        <tr><td>STP</td><td class="na">Evidence link not available</td></tr>
+        <tr><td>Jam.dev / SpiraTest</td><td class="na">Evidence link not available</td></tr>
+      </table>
+    </div>
+  </div>
+</section>
+
+</main>
+</div>
+
+<div id="hud">
+  <button class="ctl" id="prev" aria-label="Previous slide">◀</button>
+  <button class="ctl" id="next" aria-label="Next slide">▶</button>
+  <button class="ctl" id="auto" aria-pressed="false" title="Autoplay with the recommended timings">Auto: off</button>
+  <button class="ctl" id="fs" title="Fullscreen (F)">⛶</button>
+  <button id="hide" title="Hide controls (H)">H</button>
+  <span id="counter">1 / 7</span>
+</div>
+
+<script>
+(() => {
+  const slides = [...document.querySelectorAll('.slide')];
+  const stage = document.getElementById('stage');
+  const progress = document.getElementById('progress');
+  const counter = document.getElementById('counter');
+  const hud = document.getElementById('hud');
+  const autoBtn = document.getElementById('auto');
+  let index = 0;
+  let timer = null;
+
+  function fit() {
+    const scale = Math.min(window.innerWidth / 1280, window.innerHeight / 720);
+    stage.style.transform = `scale(${scale})`;
+  }
+
+  function show(i) {
+    index = Math.max(0, Math.min(slides.length - 1, i));
+    slides.forEach((s, n) => s.classList.toggle('active', n === index));
+    counter.textContent = `${index + 1} / ${slides.length}`;
+    progress.style.width = `${((index + 1) / slides.length) * 100}%`;
+    if (location.hash !== `#${index + 1}`) history.replaceState(null, '', `#${index + 1}`);
+    if (timer) schedule();
+  }
+
+  // Autoplay: off by default, uses each slide's data-sec, stops on the last slide.
+  function schedule() {
+    clearTimeout(timer);
+    if (index >= slides.length - 1) { setAuto(false); return; }
+    timer = setTimeout(() => show(index + 1), Number(slides[index].dataset.sec) * 1000);
+  }
+  function setAuto(on) {
+    clearTimeout(timer);
+    timer = on ? -1 : null;
+    autoBtn.textContent = on ? 'Auto: on' : 'Auto: off';
+    autoBtn.setAttribute('aria-pressed', String(on));
+    if (on) schedule();
+  }
+
+  function fullscreen() {
+    if (!document.fullscreenElement) document.documentElement.requestFullscreen?.();
+  }
+
+  document.addEventListener('keydown', (e) => {
+    if (e.altKey || e.ctrlKey || e.metaKey) return;
+    switch (e.key) {
+      case 'ArrowRight': case ' ': case 'PageDown': e.preventDefault(); show(index + 1); break;
+      case 'ArrowLeft': case 'PageUp': e.preventDefault(); show(index - 1); break;
+      case 'Home': e.preventDefault(); show(0); break;
+      case 'End': e.preventDefault(); show(slides.length - 1); break;
+      case 'f': case 'F': fullscreen(); break;
+      case 'h': case 'H': hud.classList.toggle('hidden'); break;
+      case 'Escape': if (document.fullscreenElement) document.exitFullscreen(); break;
+    }
+  });
+  document.getElementById('prev').onclick = () => show(index - 1);
+  document.getElementById('next').onclick = () => show(index + 1);
+  document.getElementById('fs').onclick = fullscreen;
+  document.getElementById('hide').onclick = () => hud.classList.toggle('hidden');
+  autoBtn.onclick = () => setAuto(timer === null);
+  document.addEventListener('visibilitychange', () => { if (document.hidden && timer !== null) setAuto(false); });
+  // Buttons must not keep focus, or Space would click them instead of advancing.
+  hud.addEventListener('mouseup', () => document.activeElement.blur());
+
+  window.addEventListener('resize', fit);
+  fit();
+  show((parseInt(location.hash.slice(1), 10) || 1) - 1);
+})();
+</script>
+</body>
+</html>
