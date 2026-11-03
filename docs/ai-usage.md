@@ -8,6 +8,7 @@ Claude Code (Anthropic), run as an agent in the local project directory.
 2. **Improvement / stabilization** (this phase). Implement the P0/P1 findings and the useful P2 findings, stabilize the suite, document the changes. The five-run campaign is explicitly out of scope.
 
 ## Main instructions
+- Prompt for the audit phase: `C:\MyStudies\ITAC2026\final\prompt1-audit.md` (saved outside the repo). It asks for a concise, specific diagnostic report and forbids modifying project files, tests or configuration during the audit.
 - Prompt for this phase: `C:\MyStudies\ITAC2026\final\prompt2-improve.md` (saved outside the repo). It asks for: a short plan, then implementation; no deleted or skipped tests, no weakened assertions, no extra retries or timeouts; do not modify `app/`; zero-retry verification; keep this file and `docs/competition-changes.md` up to date; no commits or pushes.
 - Constraints from the coordinating session and the README: `app/` belongs to another team; async delays must stay; no API calls in place of UI checks; do not read `mentor/HINTS.md` (it was not read); implement the `coupon discount` TODO instead of removing it; record unconfirmed product issues as suspected, not as failing assertions.
 
