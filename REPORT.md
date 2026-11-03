@@ -4,11 +4,11 @@
 |---|---|
 | Baseline | `b686df0` (legacy suite as received) |
 | Audit | `7a2a58d` (`AUDIT.md`, findings F1–F17) |
-| Tested commits | `d4a5f55` (stabilized suite, local series); `9d8d52b` (same tests plus the Pages deploy job, CI series) |
+| Tested commits | `d4a5f55` (stabilized suite, local series); `1197276` (same tests plus the Pages publishing of the series, CI series) |
 | Stack | Playwright 1.64.1, TypeScript 5.9.3, Chromium, Node.js 22 |
 | Result | 5 consecutive full green runs on GitHub Actions and 5 locally, `--retries=0`, 19 passed / 0 failed / 0 skipped each |
 | Repository | https://github.com/alessiospb/itac2026-training |
-| HTML report (latest `main` run) | https://alessiospb.github.io/itac2026-training/ |
+| CI series and HTML reports | https://alessiospb.github.io/itac2026-training/ (all 5 runs, each with its own Playwright report) |
 
 Details of every change: `docs/competition-changes.md`. AI usage: `docs/ai-usage.md`. `app/` was not modified.
 
@@ -41,7 +41,7 @@ All baseline failures were test defects. None of them pointed to the product.
 | Structure | Typed page object `pages/shop.ts` with readonly role/label locators and intent methods. The single spec was split into `catalog`, `cart` and `checkout` |
 | False pass | `try/catch` removed. The test now sets up a cart, opens checkout and asserts the exact error text |
 | Config | `retries: 0`, `trace: 'retain-on-failure'`, `forbidOnly` on CI, `fullyParallel: true`, `workers: 2` |
-| CI | `continue-on-error` removed, `npm ci` with cache, `tsc --noEmit` step, `--retries=0`, job timeout 15 min, uploads `playwright-report/` and `test-results/` (traces, screenshots) with `if: always()`. A `deploy-report` job publishes the HTML report of every `main` run to GitHub Pages, red runs included; the workflow result is still decided by the `tests` job |
+| CI | `continue-on-error` removed, `npm ci` with cache, `tsc --noEmit` step, `--retries=0`, job timeout 15 min, uploads `playwright-report/` and `test-results/` (traces, screenshots) with `if: always()`. A `deploy-report` job publishes to GitHub Pages an index of every `main` run of the commit, each linked to its own HTML report, red runs included (`scripts/build-pages-site.mjs`); the workflow result is still decided by the `tests` job. Documentation-only pushes (`**.md`, `docs/`, `evidence/`, `video/`) do not start a run |
 
 **Why `workers: 2` and not more.** The timeout was not increased. With the local default of 6 workers, 3 of 12 full runs failed in the first parallel wave: "Loading products…" stayed visible for 15 s. The trace showed a host stall, not a test or app fault. A 4.7 KB local page took 7.7 s to receive, and Playwright's own trace events had ~35 s gaps. With 2 workers, 8 of 8 full runs were green. 2 is also Playwright's default on a 4-vCPU GitHub runner.
 
@@ -76,17 +76,21 @@ All baseline failures were test defects. None of them pointed to the product.
 
 ### 5.1 GitHub Actions (primary evidence)
 
-Commit `9d8d52b` on `main`. Its test code, config and app are identical to `d4a5f55`; it only adds the Pages deploy job and `.gitignore` entries. Runner `ubuntu-latest` (4 vCPU), workflow `UI tests`, step `npx playwright test --retries=0`, 2 workers. Run 1 was triggered by the push, runs 2–5 by `workflow_dispatch`, one after another. Every run is attempt 1: no re-runs.
+Commit `1197276` on `main`. Its test code, Playwright config and app are identical to `d4a5f55`; the commits after it change only the CI workflow, `scripts/build-pages-site.mjs` and `.gitignore`. Runner `ubuntu-latest` (4 vCPU), workflow `UI tests`, step `npx playwright test --retries=0`, 2 workers. Run 1 was triggered by the push, runs 2–5 by `workflow_dispatch`, each started after the previous run had finished. Every run is attempt 1: no re-runs. Times are the `tests` job (UTC).
 
-| Run | Run ID | Trigger | Start (UTC) | End (UTC) | Result | Passed | Failed | Flaky | Skipped | Test time |
-|---|---|---|---|---|---|---:|---:|---:|---:|---:|
-| 1 | [41453566130](https://github.com/alessiospb/itac2026-training/actions/runs/41453566130) | push | 2026-11-02 13:30:29 | 13:32:04 | success | 19 | 0 | 0 | 0 | 18.6 s |
-| 2 | [41453871236](https://github.com/alessiospb/itac2026-training/actions/runs/41453871236) | workflow_dispatch | 2026-11-02 13:32:34 | 13:33:41 | success | 19 | 0 | 0 | 0 | 18.5 s |
-| 3 | [41454069012](https://github.com/alessiospb/itac2026-training/actions/runs/41454069012) | workflow_dispatch | 2026-11-02 13:33:56 | 13:35:07 | success | 19 | 0 | 0 | 0 | 20.1 s |
-| 4 | [41454273388](https://github.com/alessiospb/itac2026-training/actions/runs/41454273388) | workflow_dispatch | 2026-11-02 13:35:19 | 13:36:44 | success | 19 | 0 | 0 | 0 | 21.6 s |
-| 5 | [41454519270](https://github.com/alessiospb/itac2026-training/actions/runs/41454519270) | workflow_dispatch | 2026-11-02 13:36:59 | 13:38:11 | success | 19 | 0 | 0 | 0 | 19.9 s |
+| Run | Run ID | Trigger | Tests start (UTC) | End (UTC) | Result | Passed | Failed | Flaky | Skipped | Test time | Report |
+|---|---|---|---|---|---|---:|---:|---:|---:|---:|---|
+| 1 | [41610808296](https://github.com/alessiospb/itac2026-training/actions/runs/41610808296) | push | 2026-11-03 09:25:00 | 09:25:53 | success | 19 | 0 | 0 | 0 | 20.7 s | [report](https://alessiospb.github.io/itac2026-training/runs/41610808296/index.html) |
+| 2 | [41611044212](https://github.com/alessiospb/itac2026-training/actions/runs/41611044212) | workflow_dispatch | 2026-11-03 09:26:34 | 09:27:22 | success | 19 | 0 | 0 | 0 | 18.2 s | [report](https://alessiospb.github.io/itac2026-training/runs/41611044212/index.html) |
+| 3 | [41611253627](https://github.com/alessiospb/itac2026-training/actions/runs/41611253627) | workflow_dispatch | 2026-11-03 09:28:08 | 09:29:07 | success | 19 | 0 | 0 | 0 | 21.9 s | [report](https://alessiospb.github.io/itac2026-training/runs/41611253627/index.html) |
+| 4 | [41611463252](https://github.com/alessiospb/itac2026-training/actions/runs/41611463252) | workflow_dispatch | 2026-11-03 09:30:01 | 09:30:52 | success | 19 | 0 | 0 | 0 | 17.8 s | [report](https://alessiospb.github.io/itac2026-training/runs/41611463252/index.html) |
+| 5 | [41611712789](https://github.com/alessiospb/itac2026-training/actions/runs/41611712789) | workflow_dispatch | 2026-11-03 09:31:32 | 09:32:45 | success | 19 | 0 | 0 | 0 | 20.6 s | [report](https://alessiospb.github.io/itac2026-training/runs/41611712789/index.html) |
 
-Counts come from the Playwright summary in each run's log (`Running 19 tests using 2 workers` … `19 passed`). Each run keeps its HTML report and test results as artifacts (14 days). Pages shows the report of the latest `main` run.
+Counts come from the Playwright summary in each run's `tests` job log (`Running 19 tests using 2 workers` … `19 passed`). The Pages index is rebuilt by every run from the Actions API and those logs, and each run's own `playwright-report` artifact is published under `runs/<run id>/`. Artifacts are kept 14 days.
+
+Earlier series:
+- `9d8d52b` (2026-11-02): 5 of 5 green, attempt 1, same test code (runs 41453566130, 41453871236, 41454069012, 41454273388, 41454519270). At that time Pages showed only the latest report.
+- `f78972a` (2026-11-03): 5 green runs, but not counted. Run 5 was dispatched by mistake while run 4 was still going, so the two overlapped (tests started 09:20:50 and 09:20:48). The Pages index of that commit also showed 0 counts because the log could not be read. Both were fixed in `1197276`, which now marks overlapping runs as not counted.
 
 ### 5.2 Local series
 
@@ -137,7 +141,7 @@ These are product issues, not test issues. They should be filed against `app/`, 
 ## 7. Remaining risks
 
 - **Red path in CI not demonstrated.** No deliberately failing run has been made on Actions. That the workflow turns red on a test failure follows from its configuration (no `continue-on-error`, `--retries=0`), but it has not been observed.
-- **Pages shows only the latest `main` run.** Older reports are available only as run artifacts, which expire after 14 days.
+- **Pages shows only the current commit's runs, for 14 days.** A new code commit starts a new series on the page. Reports of older runs come from their artifacts, which expire after 14 days; after that a row stays but loses its report link.
 - **Action runtime deprecations.** GitHub warns that the v4 actions run on deprecated Node.js 20 and that `ubuntu-latest` is moving to Ubuntu 26. The runs are not affected yet.
 - **Parallel stall on overloaded hosts.** More than 2 workers on a busy machine reproduced the start-up stall described in §3.
 - **Order id collisions.** Order ids use `Date.now()`, so two parallel orders in the same millisecond could share an id. The tests check only the format. Low risk.

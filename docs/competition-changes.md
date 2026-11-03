@@ -25,7 +25,7 @@ The original `tests/shop.spec.ts` was split into `catalog.spec.ts`, `cart.spec.t
 
 ## Not done / deferred
 
-- F13 (rest): GitHub Pages deploy job. Deferred. With no remote, it could not be verified, and an unconfigured Pages environment would turn the workflow red.
+- F13 (rest): GitHub Pages publishing was deferred in this phase and done later, once the repository existed: the `deploy-report` job publishes an index of every `main` run of the commit with each run's HTML report (`scripts/build-pages-site.mjs`). Verified on Actions; see REPORT.md §5.1.
 - F16 (`strict: true`): P3, deferred.
 - F17: the baseline was committed by the user (`b686df0`), outside this phase.
 
