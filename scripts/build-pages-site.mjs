@@ -24,16 +24,22 @@ const runs = api(`repos/${repo}/actions/workflows/tests.yml/runs?head_sha=${sha}
   .filter((r) => r.event === 'push' || r.event === 'workflow_dispatch')
   .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
 
+// Job logs are fetched directly: `gh api` refuses to print them because Playwright colours its output.
+const token = process.env.GH_TOKEN || gh(['auth', 'token']).trim();
+async function jobLog(jobId) {
+  const res = await fetch(`https://api.github.com/repos/${repo}/actions/jobs/${jobId}/logs`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json' },
+  });
+  // Logs expire with the run; the row then shows the job result without counts.
+  if (!res.ok) return '';
+  return (await res.text()).replace(/\x1b\[[0-9;]*m/g, '');
+}
+
 // Counts are read from the tests job log: the Playwright list reporter summary of that job.
-function testsJob(run) {
+async function testsJob(run) {
   const job = api(`repos/${repo}/actions/runs/${run.id}/attempts/${run.run_attempt}/jobs`).jobs.find((j) => j.name === 'tests');
   if (!job || job.status !== 'completed') return { result: job ? job.status : 'missing' };
-  let log = '';
-  try {
-    log = gh(['api', `repos/${repo}/actions/jobs/${job.id}/logs`]);
-  } catch {
-    // Logs expire with the run; the row then shows the job result without counts.
-  }
+  const log = await jobLog(job.id);
   const n = (word) => {
     const m = log.match(new RegExp(`^\\S+\\s+(\\d+) ${word}\\b`, 'm'));
     return m ? Number(m[1]) : 0;
@@ -53,8 +59,9 @@ function testsJob(run) {
   };
 }
 
-const rows = runs.map((run, i) => {
-  const job = testsJob(run);
+const rows = [];
+for (const [i, run] of runs.entries()) {
+  const job = await testsJob(run);
   const dir = join(out, 'runs', String(run.id));
   // The current run's report is put there by actions/download-artifact; older ones come from their runs.
   if (!existsSync(join(dir, 'index.html'))) {
@@ -65,14 +72,25 @@ const rows = runs.map((run, i) => {
     }
   }
   const green = job.result === 'success' && job.failed === 0 && job.flaky === 0 && job.passed > 0;
-  return { n: i + 1, run, job, green, firstAttempt: run.run_attempt === 1, report: existsSync(join(dir, 'index.html')) };
-});
+  // Runs must be one after another: a run whose tests started before the previous run's tests ended overlaps it.
+  const prev = rows.at(-1)?.job;
+  const overlaps = Boolean(job.start && prev?.end && new Date(job.start) < new Date(prev.end));
+  rows.push({ n: i + 1, run, job, green, overlaps, firstAttempt: run.run_attempt === 1, report: existsSync(join(dir, 'index.html')) });
+}
+
+// Why a finished run does not count towards the series, or '' when it does.
+const problem = (r) =>
+  !r.firstAttempt ? `re-run (attempt ${r.run.run_attempt})`
+    : !r.green ? (r.job.hasLog ? r.job.result : 'no log to read counts from')
+      : !r.job.retries0 ? 'not run with --retries=0'
+        : r.overlaps ? `overlaps run ${r.n - 1}`
+          : '';
 
 const series = rows.slice(0, SERIES);
-const counted = series.filter((r) => r.green && r.firstAttempt && r.job.retries0).length;
-const broken = series.find((r) => r.job.start && !(r.green && r.firstAttempt));
+const counted = series.filter((r) => r.job.start && !problem(r)).length;
+const broken = series.find((r) => r.job.start && problem(r));
 const verdict = broken
-  ? { cls: 'bad', text: `Series broken at run ${broken.n}: ${broken.firstAttempt ? broken.job.result : `re-run (attempt ${broken.run.run_attempt})`}` }
+  ? { cls: 'bad', text: `Series broken at run ${broken.n}: ${problem(broken)}` }
   : counted === SERIES
     ? { cls: 'good', text: `${SERIES} of ${SERIES} runs green, first attempt, --retries=0` }
     : { cls: 'wait', text: `In progress: ${counted} of ${SERIES} green runs so far` };
@@ -82,7 +100,10 @@ const runUrl = (run) => `https://github.com/${repo}/actions/runs/${run.id}`;
 const commitUrl = `https://github.com/${repo}/commit/${sha}`;
 const latest = rows.filter((r) => r.report).at(-1);
 
-const tableRows = rows.map(({ n, run, job, green, firstAttempt, report }) => `
+const tableRows = rows.map((r) => {
+  const { n, run, job, firstAttempt, report } = r;
+  const why = job.start ? problem(r) : '';
+  return `
       <tr class="${n > SERIES ? 'extra' : ''}">
         <td>${n}</td>
         <td><a href="${esc(runUrl(run))}">${run.id}</a></td>
@@ -90,14 +111,15 @@ const tableRows = rows.map(({ n, run, job, green, firstAttempt, report }) => `
         <td>${firstAttempt ? '1' : `<span class="bad">${run.run_attempt}</span>`}</td>
         <td>${esc(time(job.start))}</td>
         <td>${esc(time(job.end).slice(11))}</td>
-        <td><span class="pill ${green ? 'good' : job.start ? 'bad' : 'wait'}">${esc(job.result)}</span></td>
+        <td><span class="pill ${!job.start ? 'wait' : why ? 'bad' : 'good'}">${esc(job.result)}</span>${why && job.result === 'success' ? ` <span class="bad">${esc(why)}</span>` : ''}</td>
         <td class="num">${job.hasLog ? job.passed : '—'}</td>
         <td class="num">${job.hasLog ? job.failed : '—'}</td>
         <td class="num">${job.hasLog ? job.flaky : '—'}</td>
         <td class="num">${job.hasLog ? job.skipped : '—'}</td>
         <td class="num">${esc(job.testTime || '—')}</td>
         <td>${report ? `<a href="runs/${run.id}/index.html">Open</a>` : '—'}</td>
-      </tr>`).join('');
+      </tr>`;
+}).join('');
 
 const built = new Date().toISOString().replace('T', ' ').slice(0, 19);
 const html = `<!doctype html>
@@ -155,7 +177,7 @@ const html = `<!doctype html>
   <ul>
     <li>All runs of this commit on <code>main</code> (push and manual dispatch), oldest first. The series is the first ${SERIES}; later runs are listed in grey.</li>
     <li>Result is the <code>tests</code> job. Counts come from the Playwright summary in that job's log; the step is <code>npx playwright test --retries=0</code>.</li>
-    <li>A re-run shows attempt &gt; 1 and breaks the series. A new commit starts a new series on this page.</li>
+    <li>A re-run (attempt &gt; 1) or a run that overlaps the previous one breaks the series. A new commit starts a new series on this page.</li>
     <li>${latest ? `Latest report: <a href="runs/${latest.run.id}/index.html">run ${latest.run.id}</a>. ` : ''}Each report is the run's own <code>playwright-report</code> artifact (kept 14 days).</li>
   </ul>
   <p>Page built ${esc(built)} UTC by run <a href="${esc(runUrl({ id: currentRunId }))}">${currentRunId}</a>.</p>
